@@ -1,0 +1,15 @@
+---
+import '../styles/global.css';
+const { title, description = 'Notes by Adeel Khan on platform engineering, reliability, cloud, and AI infrastructure.' } = Astro.props;
+const path = Astro.url.pathname;
+const links = [['/', 'Home'], ['/about/', 'About'], ['/writing/', 'Writing'], ['/projects/', 'Projects']];
+---
+<!doctype html>
+<html lang="en-AU">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>{title === 'Home' ? 'itsf9.dev — Adeel Khan' : `${title} — itsf9.dev`}</title><meta name="description" content={description}/><link rel="canonical" href={new URL(path, Astro.site)}/><link rel="icon" type="image/svg+xml" href="/favicon.svg"/></head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="shell"><header><a class="brand" href="/" aria-label="itsf9.dev home">itsf9<span>.dev</span></a><nav aria-label="Main navigation">{links.map(([href, label]) => <a href={href} aria-current={(href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : undefined}>{label}</a>)}</nav></header>
+<main id="main"><slot/></main>
+<footer><span>Adeel Khan · Melbourne, Australia</span><span>Platform engineering &amp; SRE</span></footer></div>
+</body></html>

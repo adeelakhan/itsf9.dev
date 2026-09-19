@@ -1,0 +1,7 @@
+---
+import Base from '../../layouts/Base.astro';
+const posts = Object.values(import.meta.glob('./*.md', { eager: true })).filter((post: any) => !post.frontmatter.draft).sort((a: any,b: any) => String(b.frontmatter.date).localeCompare(String(a.frontmatter.date))) as any[];
+---
+<Base title="Writing"><p class="eyebrow">Writing</p><h1>Engineering, in practice.</h1><p class="lead">The context, investigations, and trade-offs behind systems I've helped build and operate.</p>
+{posts.length ? posts.map(post => <article class="entry"><p class="status">{post.frontmatter.date}</p><h2><a href={post.url}>{post.frontmatter.title}</a></h2><p>{post.frontmatter.description}</p></article>) : <section class="section"><p class="status">In preparation</p><h2>What Five-Nines Reliability Really Takes</h2><p>From fragmented monitoring to measurable reliability: the role of service objectives, alert quality, incident response, and operational ownership.</p><p class="muted">The first article is on its way.</p></section>}
+</Base>
