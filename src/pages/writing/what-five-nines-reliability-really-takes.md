@@ -97,6 +97,16 @@ That's why an additional pod wasn't the capacity plan. The capacity test needed 
 
 At 1,000 TPS, p95 latency was 100 ms, the error rate was zero, the environment remained stable for the full 30-minute run, and there were no pod restarts. Average latency remained below 60 ms and average CPU stayed below 90%. We also tested to 1,500 TPS to understand the headroom beyond the immediate requirement.
 
+| Measure | Before the work | After the work |
+| --- | --- | --- |
+| Sustained throughput | Approximately 100 TPS baseline | 1,000 TPS accepted; tested to 1,500 TPS |
+| p95 latency at target load | Not established | 100 ms |
+| Average latency | Not established | Below 60 ms |
+| Error rate | Not established under sustained target load | Zero |
+| Pod restarts | Liveness failures under pressure | None during the 30-minute target run |
+| Average CPU | Not established at target load | Below 90% |
+| Full-scale environment cost | Approximately USD 10,000 per month | Less than USD 20 for a 30-minute load test |
+
 My scope was the infrastructure and test system: the pipelines, ephemeral environment, load-test harness, traffic model and telemetry. When the tests exposed application-processing issues, I asked the development team to investigate those changes. Keeping that boundary clear allowed each team to work at the layer it owned while we continued to reason about the platform as a whole.
 
 Lessons that I learned were very straightforward:
