@@ -19,11 +19,13 @@ That was 2022. Traffic came in with batch sizes from 1 to 200 items, and we were
 
 We thought the answer should have been in the application capacity. That was only half of the picture.
 
+There was no existing load testing harness to really stress test the apis. Given this gap in the team I volunteered to setup a load testing solution. Azure Load Testing had just gone GA and looked like a viable option as it runs jmeter in the backend.
+
 There was also a cost constraint. A full-scale AKS cluster with production-sized Redis and Kubernetes resources would have made repeated load testing expensive. The test environment needed to be representative enough to produce useful evidence, but temporary enough that we were not paying for it between tests.
 
 ## The load test needed an operating model
 
-We separated the workflow into two pipelines. One pipeline built and destroyed the test environment. It provisioned the AKS cluster and supporting services, then removed them after testing. The second pipeline ran the load test and recorded the result as a pass or fail.
+We separated the workflow into two pipelines. One pipeline built and destroyed the test environment. It provisioned the AKS cluster, ELK stack and redis, then removed them after testing. The second pipeline deployed the application code required to be tested, ran the load test and recorded the result as a pass or fail.
 
 The operator running a test owned the full lifecycle: build the cluster, run the test, capture the result and destroy the environment. That kept the workflow clear, but it also created an obvious operational risk. If the operator forgot the final step, the temporary environment could continue generating cost.
 
@@ -31,7 +33,7 @@ We added an alert for environments that remained active outside business hours. 
 
 The environment matched production in scale. That mattered because the purpose of the test was to make a capacity decision, not to produce an optimistic result from a miniature environment.
 
-The cost difference was significant. A full-scale environment cost approximately USD 10,000 per month to run continuously. A 30-minute load test cost less than USD 20. The governance and teardown alert were working well, so adding more automation would have increased complexity without solving a demonstrated problem.
+The cost difference was significant. A full-scale environment(4 node AKS cluster, 3 node ELK, 6 shard redis) cost approximately USD 10,000 per month to run continuously. A 30-minute load test cost less than USD 20. The governance and teardown alert were working well, so adding more automation would have increased complexity without solving a demonstrated problem.
 
 ![Sanitized production request path showing API Gateway, AKS, application pods, Redis, Elasticsearch, and telemetry](/architecture-reliability.svg)
 
@@ -47,6 +49,18 @@ To discover it, we had to generate controlled traffic, vary batch sizes and run 
 
 The traffic pattern was defined by AWS API Gateway access logs. The practical task was how to generate and sustain that traffic pattern long enough. I tuned JMeter thread and loop settings until the test was able to sustain 30 minutes of load. One burst may show the platform hitting a number. A sustained test will show if it can stay there.
 
+Specifically the below settings were tweaked in order to achieve the desired load profile,
+
+jmeter:
+LoopController.loops - (How long you want to run the test for)
+ThreadGroup.num_threads - (How much traffic you want to generate)
+
+Azure Load Testing Config:
+engineInstances (Used in conjunction with ThreadGroup.num_threads to generate load)
+
+
+failureCriteria was set based on the p90 response time, requests per sec and percentage error metrics.
+
 ## Adding a pod did not add the capacity we wanted
 
 The first significant limitation appeared at approximately 500 TPS. As CPU usage increased, latency started increasing rapidly. In the end, the liveness probes failed and application pods restarted.
@@ -55,7 +69,7 @@ Our natural reaction was to follow the obvious path—add another node and anoth
 
 The expected result was not achieved.
 
-Adding pods had worked for us in the past, but I had warned that the relationship would not remain linear at higher load. The test confirmed that hypothesis. More replicas could increase capacity up to the point where a dependency became the constraint; after that, adding pods only increased waiting and contention.
+Adding pods had worked for us in the past, but I had suspected that the relationship would not remain linear at higher load. The test confirmed that hypothesis. More replicas could increase capacity up to the point where a dependency became the constraint; after that, adding pods only increased waiting and contention.
 
 That changed the direction of the investigation. If additional application capacity doesn't increase the throughput, the application tier must be waiting for something else.
 
@@ -71,7 +85,7 @@ At 700 TPS, the platform was still below the 1,000 TPS requirement. The next iss
 
 It wasn't visible at the initial traffic level. It surfaced with the combination of increased request rate and batch size.
 
-The application team was able to investigate and fix the processing issue. After the change, the platform achieved the 1,000 TPS requirement.
+The application team was able to investigate and fix the processing issue which was a more efficient method of regex handling for higher batch sizes. After the change, the platform achieved the 1,000 TPS requirement.
 
 It was easy to consider it an endpoint and the work as done. The test passed the goal number. The sustained load test wasn't finished with us yet.
 
@@ -81,7 +95,7 @@ After approximately 15 minutes of sustained load testing, Redis connection failu
 
 It was a different limitation from the previous Elasticsearch saturation problem. The platform was able to reach the target rate, but it couldn't sustain the conditions yet.
 
-The solution included three related changes: the development team changed the StackExchange.Redis library, enabled its async capabilities, and I found a worker-thread value that worked with the Kubernetes resource requests and limits. The worker-thread value was supplied as a variable during the Helm upgrade.
+The solution included three related changes: the development team changed the StackExchange.Redis library, enabled its async capabilities, and I found a WORKER_THREAD value that worked with the Kubernetes resource requests and limits. The worker-thread value was supplied as a variable during the Helm upgrade.
 
 The number itself was not the lesson. A thread setting that looks acceptable in isolation may not be suitable for the CPU limits of a container, the Redis client library and the way the application works.
 
