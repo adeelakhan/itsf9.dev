@@ -8,12 +8,16 @@ date: '2026-09-20'
 The goal seemed clear: scale a platform handling approximately 100 transactions per second to 1,000 TPS and beyond.
 
 The hard part was nobody knew if the platform was able to do it.
+That was 2022. Traffic came in with batch sizes from 1 to 200 items, and we were about to launch a new API that was going to require more processing power than the existing one. Availability was below 99.9%—the platform suffered from multiple outages in the six months since I joined the project. We had a production environment, a dotnet application running on Kubernetes, Redis and Elasticsearch as DataStores, application logs(ELK), Application Insights(APM) and AWS API Gateway access logs. What we didn't have was a way to find out the most important thing:
 
-That was 2022. Traffic came in with batch sizes from 1 to 200 items, and we were about to launch a new API that was going to require more processing power than the existing one. Availability was below 99.9%—the platform suffered from multiple outages in the six months since I joined the project. We had a production environment, Kubernetes, application logs and AWS API Gateway access logs. What we didn't have was a way to find out the most important thing:
 
 **What is the weakest point of the platform?**
 
 We thought the answer should have been in the application capacity. That was only half of the picture.
+
+![Sanitized production request path showing API Gateway, AKS, application pods, Redis, Elasticsearch, and telemetry](/architecture-reliability.svg)
+
+*A simplified view of the request path and the dependencies involved in the capacity investigation.*
 
 ## The first limitation was the lack of a test
 
