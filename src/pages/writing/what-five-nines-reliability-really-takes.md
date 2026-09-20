@@ -8,12 +8,30 @@ date: '2026-09-20'
 The goal seemed clear: scale a platform handling approximately 100 transactions per second to 1,000 TPS and beyond.
 
 The hard part was nobody knew if the platform was able to do it.
+
+The target was tied to a significant commercial opportunity. The business needed the platform to support 1,000 TPS with a p95 latency below 150 ms to support the potential onboarding of a large bank. If we could not demonstrate that capability, we risked losing the opportunity.
+
+The acceptance criteria were more demanding than a throughput number: 1,000 TPS, p95 latency below 150 ms, zero errors, no pod restarts, average CPU below 90%, and average latency below 60 ms.
 That was 2022. Traffic came in with batch sizes from 1 to 200 items, and we were about to launch a new API that was going to require more processing power than the existing one. Availability was below 99.9%—the platform suffered from multiple outages in the six months since I joined the project. We had a production environment, a dotnet application running on Kubernetes, Redis and Elasticsearch as DataStores, application logs(ELK), Application Insights(APM) and AWS API Gateway access logs. What we didn't have was a way to find out the most important thing:
 
 
 **What is the weakest point of the platform?**
 
 We thought the answer should have been in the application capacity. That was only half of the picture.
+
+There was also a cost constraint. A full-scale AKS cluster with production-sized Redis and Kubernetes resources would have made repeated load testing expensive. The test environment needed to be representative enough to produce useful evidence, but temporary enough that we were not paying for it between tests.
+
+## The load test needed an operating model
+
+We separated the workflow into two pipelines. One pipeline built and destroyed the test environment. It provisioned the AKS cluster and supporting services, then removed them after testing. The second pipeline ran the load test and recorded the result as a pass or fail.
+
+The operator running a test owned the full lifecycle: build the cluster, run the test, capture the result and destroy the environment. That kept the workflow clear, but it also created an obvious operational risk. If the operator forgot the final step, the temporary environment could continue generating cost.
+
+We added an alert for environments that remained active outside business hours. That turned a reminder into a cost-control guardrail.
+
+The environment matched production in scale. That mattered because the purpose of the test was to make a capacity decision, not to produce an optimistic result from a miniature environment.
+
+The cost difference was significant. A full-scale environment cost approximately USD 10,000 per month to run continuously. A 30-minute load test cost less than USD 20. The governance and teardown alert were working well, so adding more automation would have increased complexity without solving a demonstrated problem.
 
 ![Sanitized production request path showing API Gateway, AKS, application pods, Redis, Elasticsearch, and telemetry](/architecture-reliability.svg)
 
@@ -36,6 +54,8 @@ The first significant limitation appeared at approximately 500 TPS. As CPU usage
 Our natural reaction was to follow the obvious path—add another node and another pod.
 
 The expected result was not achieved.
+
+Adding pods had worked for us in the past, but I had warned that the relationship would not remain linear at higher load. The test confirmed that hypothesis. More replicas could increase capacity up to the point where a dependency became the constraint; after that, adding pods only increased waiting and contention.
 
 That changed the direction of the investigation. If additional application capacity doesn't increase the throughput, the application tier must be waiting for something else.
 
@@ -75,6 +95,10 @@ The platform was not a single component with a single capacity number. It was a 
 
 That's why an additional pod wasn't the capacity plan. The capacity test needed realistic batch sizes, representative traffic, telemetry of the dependent systems and enough time to expose saturation, queue growth, thread exhaustion and recovery behavior.
 
+At 1,000 TPS, p95 latency was 100 ms, the error rate was zero, the environment remained stable for the full 30-minute run, and there were no pod restarts. Average latency remained below 60 ms and average CPU stayed below 90%. We also tested to 1,500 TPS to understand the headroom beyond the immediate requirement.
+
+My scope was the infrastructure and test system: the pipelines, ephemeral environment, load-test harness, traffic model and telemetry. When the tests exposed application-processing issues, I asked the development team to investigate those changes. Keeping that boundary clear allowed each team to work at the layer it owned while we continued to reason about the platform as a whole.
+
 Lessons that I learned were very straightforward:
 
 1. Measure the system you have before designing the system you want to build.
@@ -82,5 +106,7 @@ Lessons that I learned were very straightforward:
 3. Separate the sustained load test from a successful burst.
 4. Take into account resource limits, client libraries, asynchronous processing and health probes together.
 5. Capacity belongs to the whole request path, not to a single Kubernetes deployment.
+
+Sustained testing was essential because some failures only appeared under a higher-pressure profile. A platform can reach a target number and still fail after the queues grow, a dependency saturates, or a worker pool is exhausted.
 
 This was only one step in our reliability journey. Five-nines availability wasn't achieved with one scaling decision. It was the result of discovering the place where our assumptions didn't match production reality and changing the system and its measurement together.
