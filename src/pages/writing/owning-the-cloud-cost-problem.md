@@ -2,7 +2,7 @@
 layout: ../../layouts/Post.astro
 title: Owning the Cloud Cost Problem
 description: How taking ownership of an unmanaged cost problem reduced monthly cloud spend from AUD 700,000 to AUD 550,000.
-date: '2026-09-21'
+date: '2025-09-21'
 ---
 
 Nobody wanted to own the cloud bill. The number was too large to ignore but responsibility sat across subscriptions and different teams. When someone asked who would take it on I put my hand up. We started around seven hundred thousand a month in Australian dollars. The goal was not just numbers on a page. We had to figure out where the spend was actually going and stop the same waste coming back later.
