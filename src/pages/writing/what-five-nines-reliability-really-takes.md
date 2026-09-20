@@ -5,80 +5,78 @@ description: How controlled load testing exposed bottlenecks across a .NET servi
 date: '2026-09-20'
 ---
 
-# What Five-Nines Reliability Really Takes
+The goal seemed clear: scale a platform handling approximately 100 transactions per second to 1,000 TPS and beyond.
 
-The target looked straightforward: take a platform handling roughly 100 transactions per second and make it handle more than 1,000.
+The hard part was nobody knew if the platform was able to do it.
 
-The difficult part was that nobody could tell us whether the platform was capable of doing that.
+That was 2022. Traffic came in with batch sizes from 1 to 200 items, and we were about to launch a new API that was going to require more processing power than the existing one. Availability was below 99.9%—the platform suffered from multiple outages in the six months since I joined the project. We had a production environment, Kubernetes, application logs and AWS API Gateway access logs. What we didn't have was a way to find out the most important thing:
 
-This was 2022. Requests arrived in batches ranging from 1 to 200 items, and we were preparing to introduce a new API that required substantially more compute than the existing one. Availability had not been 99.9%; in the six months before I joined, the platform had experienced multiple outages. We had a production platform, Kubernetes, application logs, and AWS API Gateway access logs. What we did not have was a reliable answer to the question that mattered most:
+**What is the weakest point of the platform?**
 
-**Where would the platform fail first?**
+We thought the answer should have been in the application capacity. That was only half of the picture.
 
-We expected the answer to involve application capacity. That turned out to be only part of the story.
+## The first limitation was the lack of a test
 
-## The first test was the absence of a test
+API Gateway access logging provided some insight into what traffic we had on the platform. With CloudWatch Logs Insights, it was possible to query request rates and latencies and understand production behavior of the system. But this was not enough to understand the safe capacity limit of the platform.
 
-AWS API Gateway access logging gave us a useful view of the traffic we were already receiving. With CloudWatch Logs Insights, we could query request rates and latency. That helped us understand production behaviour, but it did not tell us the safe operating limit of the platform.
+Observed traffic is not equal to tested capacity.
 
-Observed traffic is not the same as tested capacity.
+To discover it, we had to generate controlled traffic, vary batch sizes and run tests long enough for queues and dependent systems to surface. I built a load testing harness using Azure Load Testing and created a test script to generate JMeter test files for both APIs.
 
-We needed to generate controlled traffic, vary the batch sizes, and hold the load long enough for queues and downstream dependencies to reveal themselves. I built a load-testing harness using Azure Load Testing and created a script that generated JMeter test files for both APIs.
+The traffic pattern was defined by AWS API Gateway access logs. The practical task was how to generate and sustain that traffic pattern long enough. I tuned JMeter thread and loop settings until the test was able to sustain 30 minutes of load. One burst may show the platform hitting a number. A sustained test will show if it can stay there.
 
-The traffic model came from the access logs. The practical challenge was making the test sustain that model. I had to tune the JMeter thread and loop settings until the test could hold a stable load for 30 minutes. A short burst could show that the system reached a number. A sustained test could show whether it could live there.
+## Adding a pod did not add the capacity we wanted
 
-## Adding a pod did not add the capacity we expected
+The first significant limitation appeared at approximately 500 TPS. As CPU usage increased, latency started increasing rapidly. In the end, the liveness probes failed and application pods restarted.
 
-The first important limit appeared at around 500 TPS. Latency began to rise sharply as CPU increased. Eventually, the liveness probes failed and the application pods restarted.
+Our natural reaction was to follow the obvious path—add another node and another pod.
 
-Our first response was predictable: add another node and another pod.
+The expected result was not achieved.
 
-The throughput did not increase as expected.
+That changed the direction of the investigation. If additional application capacity doesn't increase the throughput, the application tier must be waiting for something else.
 
-That result changed the investigation. If more application capacity was not producing more throughput, the application tier was probably waiting on something else.
+Telemetry data from the load test showed that wait times in Elasticsearch were increasing and its CPU usage was approaching 100%. The search tier became the limiting factor. Application replicas could not make a saturated dependency process requests more quickly.
 
-The load-test telemetry showed that Elasticsearch wait times were increasing while its CPU was reaching saturation. The search tier had become the limiting factor. More application replicas could not make a saturated dependency respond faster.
+We doubled the number of cores of the Elasticsearch VM and ran the test again.
 
-We doubled the core capacity of the Elasticsearch VM and ran the test again.
+The result improved, but only up to 700 TPS.
 
-The result improved, but only to around 700 TPS.
+## The bottleneck returned to the application
 
-## The bottleneck moved back into the application
+At 700 TPS, the platform was still below the 1,000 TPS requirement. The next issue was found in the application's ability to process larger batches under higher traffic.
 
-At 700 TPS, the platform still fell short of the 1,000 TPS target. The next investigation found issues in the application’s processing of larger batches under increased volume.
+It wasn't visible at the initial traffic level. It surfaced with the combination of increased request rate and batch size.
 
-This was not visible at the original traffic level. It emerged when the request rate and batch size increased together.
+The application team was able to investigate and fix the processing issue. After the change, the platform achieved the 1,000 TPS requirement.
 
-The application team investigated and fixed the processing issues. After that change, the platform reached the 1,000 TPS target.
-
-It would have been easy to stop there and call the work complete. The test had reached its headline number. The sustained test was not finished with us yet.
+It was easy to consider it an endpoint and the work as done. The test passed the goal number. The sustained load test wasn't finished with us yet.
 
 ## Fifteen minutes later, Redis became the problem
 
-After roughly 15 minutes of sustained testing, Kibana began showing Redis connectivity failures. The application worker-thread setting was being exhausted. That led to liveness failures and another cycle of pod restarts.
+After approximately 15 minutes of sustained load testing, Redis connection failures started appearing in Kibana. The application worker-thread setting was exhausted. It caused liveness failures and another restart cycle of the application pods.
 
-This was a different failure from the Elasticsearch saturation we had just addressed. The platform could reach the target rate, but it could not yet sustain the conditions reliably.
+It was a different limitation from the previous Elasticsearch saturation problem. The platform was able to reach the target rate, but it couldn't sustain the conditions yet.
 
-The fix involved three connected changes: the development team changed the StackExchange.Redis library, enabled its asynchronous features, and I found a worker-thread value that worked with the Kubernetes resource requests and limits. The value was supplied as a variable during the Helm upgrade.
+The solution included three related changes: the development team changed the StackExchange.Redis library, enabled its async capabilities, and I found a worker-thread value that worked with the Kubernetes resource requests and limits. The worker-thread value was supplied as a variable during the Helm upgrade.
 
-The number itself was not the lesson. A thread setting that looked reasonable in isolation was not necessarily appropriate for the container’s CPU constraints, the Redis client library, or the way the application performed its work.
+The number itself was not the lesson. A thread setting that looks acceptable in isolation may not be suitable for the CPU limits of a container, the Redis client library and the way the application works.
 
-## The capacity number was only the beginning
+## The capacity number was only a starting point
 
-The platform eventually reached the required 1,000 TPS rate. More importantly, the investigation changed our understanding of capacity.
+Eventually, the platform reached the required 1,000 TPS rate. Much more importantly, the investigation revealed our understanding of capacity.
 
-The limiting factor moved as we changed the system: first application CPU and liveness behaviour, then Elasticsearch saturation, then application batch processing, and finally Redis connectivity and worker-thread exhaustion.
+The limiting factor shifted as we changed the system: first it was the application CPU usage and liveness behavior, then Elasticsearch saturation, then application batch processing and finally Redis connectivity and exhaustion of the worker-thread setting.
 
-The platform was not one component with one capacity number. It was a request path with several interacting limits.
+The platform was not a single component with a single capacity number. It was a request path with multiple limiting factors.
 
-That is why adding a pod was not a capacity plan. A meaningful capacity test needed realistic batch sizes, representative traffic, downstream telemetry, and enough duration to expose saturation, queue growth, thread exhaustion, and recovery behaviour.
+That's why an additional pod wasn't the capacity plan. The capacity test needed realistic batch sizes, representative traffic, telemetry of the dependent systems and enough time to expose saturation, queue growth, thread exhaustion and recovery behavior.
 
-The lessons I carried forward were simple:
+Lessons that I learned were very straightforward:
 
-1. Measure the system you have before designing the system you think you need.
-2. Test dependencies as part of the platform; application replicas cannot hide a saturated search or cache tier.
-3. Treat sustained load as a different test from a successful burst.
-4. Consider resource limits, client libraries, asynchronous processing, and health probes together.
+1. Measure the system you have before designing the system you want to build.
+2. Test dependencies as part of the platform; application replicas can't hide a saturated search or cache tier.
+3. Separate the sustained load test from a successful burst.
+4. Take into account resource limits, client libraries, asynchronous processing and health probes together.
 5. Capacity belongs to the whole request path, not to a single Kubernetes deployment.
 
-This was one step in a longer reliability journey. Five-nines availability did not come from one scaling decision. It came from repeatedly finding the place where our assumptions stopped matching production behaviour, then changing both the system and the way we measured it.
+This was only one step in our reliability journey. Five-nines availability wasn't achieved with one scaling decision. It was the result of discovering the place where our assumptions didn't match production reality and changing the system and its measurement together.
