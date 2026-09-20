@@ -1,12 +1,13 @@
 ---
 import Base from '../layouts/Base.astro';
+const base = import.meta.env.BASE_URL;
 ---
 <Base title="Home">
 <p class="eyebrow">Adeel Khan / Engineering notes</p>
 <h1>Building systems.<br/>Understanding what holds up.</h1>
 <p class="lead">Notes on building, scaling, and operating systems in production — and the decisions behind them.</p>
 <p>I'm a platform engineer and engineering leader based in Melbourne. My work brings together reliability, deployment, cost, and security. Here I write about the problems, trade-offs, and lessons that come with that responsibility.</p>
-<p><a href="/about/">More about me</a></p>
-<section class="section"><h2>Writing</h2><p>The first story is in preparation: <strong>What Five-Nines Reliability Really Takes</strong>. It explores the work behind measurable reliability, from operational visibility to ownership and incident response.</p><a href="/writing/">View writing</a></section>
-<section class="section"><h2>On the workbench</h2><p>Exploring local model inference on Apple Silicon, and what platform engineering can bring to AI infrastructure.</p><a href="/projects/">View projects</a></section>
+<p><a href={`${base}about/`}>More about me</a></p>
+<section class="section"><h2>Writing</h2><p>The first story is in preparation: <strong>What Five-Nines Reliability Really Takes</strong>. It explores the work behind measurable reliability, from operational visibility to ownership and incident response.</p><a href={`${base}writing/`}>View writing</a></section>
+<section class="section"><h2>On the workbench</h2><p>Exploring local model inference on Apple Silicon, and what platform engineering can bring to AI infrastructure.</p><a href={`${base}projects/`}>View projects</a></section>
 </Base>
