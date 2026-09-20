@@ -2,7 +2,7 @@
 layout: ../../layouts/Post.astro
 title: What Five-Nines Reliability Really Takes
 description: How controlled load testing exposed bottlenecks across a .NET service, Elasticsearch, Redis, and Kubernetes.
-date: '2026-09-20'
+date: '2023-09-20'
 ---
 
 The goal seemed clear: scale a platform handling approximately 100 transactions per second to 1,000 TPS and beyond.
