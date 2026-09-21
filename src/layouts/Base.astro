@@ -8,7 +8,7 @@ const links = [[base, 'Home'], [`${base}about/`, 'About'], [`${base}writing/`, '
 ---
 <!doctype html>
 <html lang="en-AU">
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>{title === 'Home' ? 'itsf9.dev — Adeel Khan' : `${title} — itsf9.dev`}</title><meta name="description" content={description}/><link rel="canonical" href={new URL(path, Astro.site)}/><link rel="icon" type="image/svg+xml" href="/favicon.svg"/></head>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>{title === 'Home' ? 'itsf9.dev — Adeel Khan' : `${title} — itsf9.dev`}</title><meta name="description" content={description}/><meta property="og:title" content={title === 'Home' ? 'itsf9.dev — Adeel Khan' : `${title} — itsf9.dev`}/><meta property="og:description" content={description}/><meta property="og:type" content="article"/><meta property="og:url" content={new URL(path, Astro.site)}/><meta property="og:image" content={new URL('/its-fine-hero.png', Astro.site)}/><link rel="canonical" href={new URL(path, Astro.site)}/><link rel="icon" type="image/svg+xml" href="/favicon.svg"/></head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <div class="shell"><header><a class="brand" href={base} aria-label="itsf9.dev home">itsf9<span>.dev</span></a><nav aria-label="Main navigation">{links.map(([href, label]) => <a href={href} aria-current={path === href || (href !== base && path.startsWith(href)) ? 'page' : undefined}>{label}</a>)}</nav></header>
