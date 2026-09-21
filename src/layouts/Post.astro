@@ -3,4 +3,4 @@ import Base from './Base.astro';
 const { frontmatter } = Astro.props;
 const base = import.meta.env.BASE_URL;
 ---
-<Base title={frontmatter.title} description={frontmatter.description}><article class="post"><p class="eyebrow">Engineering notes · {frontmatter.date}</p><h1>{frontmatter.title}</h1><p class="lead">{frontmatter.description}</p><div class="post-body"><slot/></div></article><p class="section"><a href={`${base}writing/`}>All writing</a></p></Base>
+<Base title={frontmatter.title} description={frontmatter.description}><article class="post"><p class="eyebrow">Engineering notes · {frontmatter.date}</p><h1>{frontmatter.title}</h1><p class="lead">{frontmatter.description}</p><div class="post-body"><slot/></div><section class="comments"><h2>Discuss this article</h2><p>Share a question or comment in the <a href="https://github.com/adeelakhan/itsf9.dev/discussions" rel="noreferrer">itsf9.dev GitHub Discussions</a>.</p></section></article><p class="section"><a href={`${base}writing/`}>All writing</a></p></Base>
